@@ -16,9 +16,7 @@ data/*.db
 *.sqlite3
 
 # Generated Export Spreadsheets (keeps repository clean)
-data/*.xlsx
-data/*.csv
-!data/sample_export.csv
+
 
 # Application Logs
 logs/
