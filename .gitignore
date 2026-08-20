@@ -1,0 +1,46 @@
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+
+# Byte-compiled / optimized / cache files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Local SQLite Databases
+data/*.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Generated Export Spreadsheets (keeps repository clean)
+data/*.xlsx
+data/*.csv
+!data/sample_export.csv
+
+# Application Logs
+logs/
+*.log
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# Build & Distribution
+dist/
+build/
+*.egg-info/
