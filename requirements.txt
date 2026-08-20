@@ -2,6 +2,7 @@ sqlalchemy>=2.0
 requests>=2.31
 python-dotenv>=1.0
 typer[all]>=0.9
+rich>=13.0
 rapidfuzz>=3.0
 tenacity>=8.2
 phonenumbers>=8.13
