@@ -1,6 +1,20 @@
 # Lead Scraper & Agency Qualification Engine
 
-A high-performance B2B lead generation, website auditing, and sales qualification engine. Discovers business leads from OpenStreetMap (Overpass API) and Geoapify Places API, crawls their websites to extract verified contact details and technical performance metrics, matches them against 9 canonical digital agency services, calculates a 0–100 Opportunity Score, and exports outreach-ready spreadsheets to **Excel (`.xlsx`)** and **CSV**.
+A high-performance B2B lead generation, website auditing, and sales qualification engine. Discovers business leads from OpenStreetMap (Overpass API) and Geoapify Places API, crawls their websites to extract verified contact details and technical performance metrics, matches them against 9 canonical digital agency services, calculates a 0–100 Opportunity Score, and exports outreach-ready spreadsheets to **Excel (`.xlsx`)** and **CSV**. Includes both a full **CLI** and an interactive **Streamlit Web Dashboard**.
+
+---
+
+## Web Dashboard (Interactive UI)
+
+Launch the interactive browser UI to search, live-filter, inspect leads, and download Excel/CSV sheets directly from your browser:
+
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Start the web dashboard (opens automatically on http://localhost:8501)
+streamlit run app.py
+```
 
 ---
 
@@ -9,10 +23,7 @@ A high-performance B2B lead generation, website auditing, and sales qualificatio
 Generate an outreach-ready Excel lead sheet in **one simple command**:
 
 ```bash
-# 1. Install dependencies (first time only)
-pip install -r requirements.txt
-
-# 2. Run full pipeline for any city & industry (e.g. Toronto Real Estate -> Excel)
+# Run full pipeline for any city & industry (e.g. Toronto Real Estate -> Excel)
 python main.py run --country CA --city Toronto --category "real estate" --count 25 --export-out data/toronto_real_estate.xlsx --export-format xlsx --contactable
 ```
 
@@ -22,13 +33,14 @@ python main.py run --country CA --city Toronto --category "real estate" --count 
 
 ## Commands at a Glance
 
-| Command | What It Does | When to Use It | Copy-Paste Example |
+| Interface | Command / Usage | Purpose | Example |
 |---|---|---|---|
-| **`run`** | **All-in-One Automation** | Scrapes, crawls websites, scores, and exports to Excel/CSV in one single step. | `python main.py run --country US --city Miami --category "dentist" --export-out data/miami_dentists.xlsx --export-format xlsx --contactable` |
-| **`scrape`** | **Discovery Only** | Gathers raw business listings from maps and saves them into the database. | `python main.py scrape --country US --city "New York" --category "lawyer" --count 30` |
-| **`analyze`** | **Website Crawling & Scoring** | Visits websites of saved leads to extract emails, phones, SEO issues & scores. | `python main.py analyze --city "New York" --category "lawyer"` |
-| **`export`** | **Custom Excel/CSV Export** | Pulls custom filtered lists from the database (e.g. only WARM leads or specific services). | `python main.py export --city Miami --category "dentist" --priority WARM --contactable --format xlsx --out data/ready.xlsx` |
-| **`info`** | **Database Dashboard** | Shows total leads collected, email/phone percentages, and priority breakdown. | `python main.py info` |
+| **Web UI** | `streamlit run app.py` | **Interactive Browser App**: Visual search, live filtering, and 1-click Excel/CSV downloads. | `streamlit run app.py` |
+| **CLI** | `python main.py run` | **All-in-One Automation**: Scrapes, crawls websites, scores, and exports to Excel/CSV. | `python main.py run --country US --city Miami --category "dentist" --export-out data/miami_dentists.xlsx --export-format xlsx --contactable` |
+| **CLI** | `python main.py scrape` | **Discovery Only**: Gathers raw business listings from maps and saves them into the database. | `python main.py scrape --country US --city "New York" --category "lawyer" --count 30` |
+| **CLI** | `python main.py analyze` | **Website Crawling & Scoring**: Visits websites of saved leads to extract emails, phones, SEO issues & scores. | `python main.py analyze --city "New York" --category "lawyer"` |
+| **CLI** | `python main.py export` | **Custom Excel/CSV Export**: Pulls custom filtered lists from the database. | `python main.py export --city Miami --category "dentist" --priority WARM --contactable --format xlsx --out data/ready.xlsx` |
+| **CLI** | `python main.py info` | **Database Dashboard**: Shows total leads collected, email/phone percentages, and priority breakdown. | `python main.py info` |
 
 ---
 
@@ -70,7 +82,7 @@ flowchart TD
     A[1. Multi-Source Discovery<br>OSM Overpass + Geoapify] --> B[Deduplication Engine<br>Domain + E.164 Phone + Fuzzy Match]
     B --> C[2. Website & Social Crawler<br>Visits URLs & Extracts Contacts/Signals]
     C --> D[3. Service Matcher & Scorer<br>Matches 9 Canonical Services + 0-100 Score]
-    D --> E[4. Filtered Export<br>Clean Excel .xlsx or CSV Deliverable]
+    D --> E[4. Filtered Export / UI Display<br>Excel .xlsx / CSV / Streamlit Dashboard]
 ```
 
 ### 1. Discovery (`scrape`)
@@ -110,7 +122,7 @@ Every lead is assigned a score from **0 to 100**:
 
 ## What Does `--contactable` Mean?
 
-In any command, adding **`--contactable`** means:
+In any command or filter, selecting **`contactable`** means:
 > **"Only include businesses where a verified Phone Number or Email Address was found."**
 
 - **`contactable = True`** (`actionable`): Has a direct phone number or email address $\rightarrow$ ready for immediate calling or emailing.
@@ -226,5 +238,6 @@ Lead Scraper Automation/
 │   └── app.log                  # Consolidated rotating application log
 ├── .env.example                 # Example configuration template
 ├── requirements.txt             # Python dependencies
+├── app.py                       # Streamlit web dashboard
 └── main.py                      # CLI entrypoint (run, scrape, analyze, export, info)
 ```
