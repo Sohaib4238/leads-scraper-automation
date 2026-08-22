@@ -1,5 +1,6 @@
 """
 SQLAlchemy ORM models: Lead and ScrapeLog.
+Compatible with both MySQL and SQLite.
 """
 
 from datetime import datetime, timezone
@@ -33,7 +34,7 @@ class Lead(Base):
     # -- Business info -----------------------------------------------------
     business_name = Column(String(500), nullable=True)
     category = Column(String(300), nullable=True)
-    website = Column(String(2048), nullable=True)
+    website = Column(String(500), nullable=True)
     phone = Column(String(50), nullable=True)
     email = Column(String(320), nullable=True)
     address = Column(String(1000), nullable=True)
@@ -62,8 +63,6 @@ class Lead(Base):
     page_size_kb = Column(Float, nullable=True)
 
     # -- Contactability (v2) -----------------------------------------------
-    # True if phone OR email is present. Phase 2 crawler can only flip
-    # false -> true, never true -> false (Fix #5: monotonic).
     contactable = Column(Boolean, nullable=False, default=False)
 
     # -- Discovery provenance (v2) -----------------------------------------

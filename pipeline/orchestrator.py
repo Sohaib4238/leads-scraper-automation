@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from config.settings import setup_logging
+from config.settings import setup_logging, normalize_category
 from db.session import get_session, init_db
 from db.crud import create_lead, create_scrape_log, complete_scrape_log
 from scraper.dedup import DeduplicationEngine
@@ -54,7 +54,7 @@ def run_scrape_pipeline(
     4. Merge results across providers
     5. Resolve web presence (social links + contactable flag)
     6. Dedup against existing DB leads
-    7. Insert new leads
+    7. Insert new leads (enforcing total unique count cap)
     8. Compute coverage report
     9. Finalize ScrapeLog
     """
@@ -64,7 +64,8 @@ def run_scrape_pipeline(
     if sources is None:
         sources = ["osm", "geoapify"]
 
-    query_str = f"{category} in {city}, {country}"
+    canonical_category = normalize_category(category) or category
+    query_str = f"{canonical_category} in {city}, {country}"
     result = PipelineResult(query=query_str, sources_used=sources)
     country_code = country.upper()
 
@@ -73,7 +74,7 @@ def run_scrape_pipeline(
             "query": query_str,
             "country": country,
             "city": city,
-            "category": category,
+            "category": canonical_category,
             "requested_count": count,
         })
         session.commit()
@@ -86,7 +87,7 @@ def run_scrape_pipeline(
             if "osm" in sources:
                 try:
                     osm = OSMProvider()
-                    osm_leads = osm.search(country, city, category, count)
+                    osm_leads = osm.search(country, city, canonical_category, count)
                     provider_results["osm"] = osm_leads
                     result.osm_count = len(osm_leads)
                     bbox_retries = osm.bbox_retries
@@ -98,7 +99,7 @@ def run_scrape_pipeline(
             if "geoapify" in sources:
                 try:
                     geo = GeoapifyProvider()
-                    geo_leads = geo.search(country, city, category, count)
+                    geo_leads = geo.search(country, city, canonical_category, count)
                     provider_results["geoapify"] = geo_leads
                     result.geoapify_count = len(geo_leads)
                     logger.info("Geoapify returned %d leads", len(geo_leads))
@@ -115,16 +116,27 @@ def run_scrape_pipeline(
             # -- Step 3: Resolve web presence ------------------------------
             resolved_leads = resolve_web_presence(merged_leads)
 
-            # -- Step 4: Dedup against DB + insert -------------------------
+            # -- Step 4: Dedup against DB + insert with true total cap -----
             dedup = DeduplicationEngine()
 
             for lead_data in resolved_leads:
+                # Enforce total unique lead count cap
+                if count > 0 and result.new_count >= count:
+                    logger.info(
+                        "Reached requested total cap of %d new unique leads. Halting ingestion.", count
+                    )
+                    break
+
                 try:
                     # Fill in city/country if not set by provider
                     if not lead_data.get("city"):
                         lead_data["city"] = city
                     if not lead_data.get("country"):
                         lead_data["country"] = country
+
+                    # Normalize category to canonical name
+                    raw_lead_cat = lead_data.get("category")
+                    lead_data["category"] = normalize_category(raw_lead_cat) or canonical_category
 
                     if dedup.is_duplicate(session, lead_data, country_code):
                         result.duplicate_count += 1
@@ -146,7 +158,9 @@ def run_scrape_pipeline(
 
             # -- Step 5: Coverage report -----------------------------------
             result.coverage = compute_coverage_report(
-                resolved_leads, city=city, category=category,
+                resolved_leads[:result.new_count if result.new_count > 0 else len(resolved_leads)],
+                city=city,
+                category=canonical_category,
                 bbox_retries=bbox_retries,
             )
 

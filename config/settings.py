@@ -1,15 +1,15 @@
 """
-Configuration & settings -- loads .env, exposes constants, sets up logging.
+Configuration and environment settings for Lead Scraper Automation.
 """
 
-import os
 import logging
+import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from dotenv import load_dotenv
 
-# -- Paths -----------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
@@ -23,8 +23,27 @@ LOG_DIR.mkdir(exist_ok=True)
 GOOGLE_PLACES_API_KEY: str = os.getenv("GOOGLE_PLACES_API_KEY", "")
 GEOAPIFY_API_KEY: str = os.getenv("GEOAPIFY_API_KEY", "")
 
-# -- Database ---------------------------------------------------------------
-DATABASE_URL: str = f"sqlite:///{DATA_DIR / 'leads.db'}"
+# -- MySQL Database Configuration -------------------------------------------
+DB_HOST: str = os.getenv("DB_HOST", "localhost")
+DB_PORT: int = int(os.getenv("DB_PORT", "3306"))
+DB_USER: str = os.getenv("DB_USER", "root")
+DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
+DB_NAME: str = os.getenv("DB_NAME", "lead_scraper")
+
+# Explicit DATABASE_URL override if provided in .env
+_ENV_DATABASE_URL = os.getenv("DATABASE_URL")
+if _ENV_DATABASE_URL:
+    DATABASE_URL: str = _ENV_DATABASE_URL
+else:
+    # Construct MySQL connection URL with URL-encoded password and utf8mb4 charset
+    if DB_PASSWORD:
+        encoded_pwd = quote_plus(DB_PASSWORD)
+        DATABASE_URL = f"mysql+pymysql://{DB_USER}:{encoded_pwd}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
+    else:
+        DATABASE_URL = f"mysql+pymysql://{DB_USER}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
+
+# Fallback path for SQLite data export/migration
+SQLITE_DATABASE_URL: str = f"sqlite:///{DATA_DIR / 'leads.db'}"
 
 # -- Google Places API (New, v1) --------------------------------------------
 PLACES_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
@@ -67,6 +86,62 @@ OSM_REQUEST_DELAY = 1.5  # delay between consecutive Overpass requests
 GEOAPIFY_PLACES_URL = "https://api.geoapify.com/v2/places"
 GEOAPIFY_GEOCODE_URL = "https://api.geoapify.com/v1/geocode/search"
 GEOAPIFY_REQUEST_TIMEOUT = 30
+
+# Canonical category mapping table to merge near-duplicates
+CANONICAL_CATEGORY_MAP: dict[str, str] = {
+    # Clothing & Fashion
+    "clothes": "clothing store",
+    "clothing": "clothing store",
+    "apparel": "clothing store",
+    "boutique": "clothing store",
+    "fashion": "clothing store",
+    "garments": "clothing store",
+    "shoe store": "clothing store",
+    "shoes": "clothing store",
+
+    # Real Estate & Property
+    "estate agent": "real estate",
+    "realtor": "real estate",
+    "property": "real estate",
+    "real estate agency": "real estate",
+    "real_estate": "real estate",
+
+    # Healthcare & Dental
+    "dental clinic": "dentist",
+    "dental": "dentist",
+    "dental care": "dentist",
+    "orthodontist": "dentist",
+    "physician": "doctor",
+    "medical clinic": "clinic",
+
+    # Automotive
+    "auto repair": "car repair",
+    "mechanic": "car repair",
+
+    # Fitness & Wellness
+    "fitness": "gym",
+    "fitness center": "gym",
+
+    # Food & Hospitality
+    "coffee shop": "cafe",
+    "coffee": "cafe",
+    "eatery": "restaurant",
+    "diner": "restaurant",
+
+    # Legal & Financial
+    "law firm": "lawyer",
+    "attorney": "lawyer",
+    "accounting": "accountant",
+}
+
+
+def normalize_category(category: str | None) -> str:
+    """Normalize raw or variant category string to canonical form."""
+    if not category:
+        return ""
+    cat_clean = category.strip().lower()
+    return CANONICAL_CATEGORY_MAP.get(cat_clean, cat_clean)
+
 
 GEOAPIFY_CATEGORY_MAP: dict[str, str] = {
     # Real Estate & Property

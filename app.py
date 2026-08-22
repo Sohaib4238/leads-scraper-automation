@@ -2,11 +2,11 @@
 Streamlit Web Dashboard for Lead Scraper & Agency Qualification Engine.
 
 Provides:
-1. Search & Discovery: Target Country, City, Category, Lead Count with real-time pipeline execution.
-2. Filter Sidebar: Multi-criteria live filtering (Priority, Service, Category, City, Min Score, Contactable, Email, Phone, Website).
-3. Database KPIs: Real-time stats bar (Total leads, HOT/WARM/COLD, Contactable vs Manual Lookup).
+1. Search & Discovery: Dynamic database-backed Category dropdown, Country, City, Lead Count with real-time pipeline execution.
+2. Filter Sidebar: Multi-criteria live filtering (Priority, Service, Category dropdown, City, Min Score, Contactable, Email, Phone, Website).
+3. Database KPIs: Real-time stats bar with sentence-case card titles.
 4. Direct Browser Exports: Download filtered leads as CSV or Excel (XLSX).
-5. Clean, flat design system with subtle borders and flat status badges.
+5. Clean, flat design system with colored Priority badges in the data table.
 """
 
 import io
@@ -84,7 +84,7 @@ p, span, label {
     margin: 0;
 }
 
-/* KPI Metric Cards - Flat, Subtle 1px Border, No Shadow */
+/* KPI Metric Cards - Flat, Subtle 1px Border, No Shadow, Sentence Case */
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -100,10 +100,8 @@ p, span, label {
 }
 
 .stat-card-title {
-    font-size: 0.78rem;
+    font-size: 0.85rem;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
     color: #64748b;
     margin-bottom: 0.35rem;
 }
@@ -182,37 +180,6 @@ section[data-testid="stSidebar"] .block-container {
     padding-top: 2rem;
 }
 
-/* Priority Badges in DataFrame or Markdown */
-.badge-hot {
-    background-color: #fee2e2;
-    color: #991b1b;
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 0.78rem;
-    display: inline-block;
-}
-
-.badge-warm {
-    background-color: #fef3c7;
-    color: #92400e;
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 0.78rem;
-    display: inline-block;
-}
-
-.badge-cold {
-    background-color: #f1f5f9;
-    color: #475569;
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 0.78rem;
-    display: inline-block;
-}
-
 /* Hide Streamlit default decoration & footer */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
@@ -257,16 +224,26 @@ def load_db_kpis() -> dict:
         }
 
 
-def get_unique_filter_options() -> tuple[list[str], list[str]]:
-    """Retrieve distinct cities and categories present in the database."""
+def get_distinct_categories() -> list[str]:
+    """Query DISTINCT category values from the database."""
     with get_session() as session:
-        cities = [r[0] for r in session.query(Lead.city).distinct().all() if r[0]]
-        categories = [r[0] for r in session.query(Lead.category).distinct().all() if r[0]]
-    return sorted(cities), sorted(categories)
+        raw_cats = [r[0] for r in session.query(Lead.category).distinct().all() if r[0] and r[0].strip()]
+    return sorted(list(set(raw_cats)))
+
+
+def highlight_priority(val: str) -> str:
+    """Return flat colored pill styling for Priority column cells."""
+    if val == "HOT":
+        return "background-color: #fee2e2; color: #991b1b; font-weight: 600;"
+    elif val == "WARM":
+        return "background-color: #fef3c7; color: #92400e; font-weight: 600;"
+    elif val == "COLD":
+        return "background-color: #f1f5f9; color: #475569; font-weight: 600;"
+    return ""
 
 
 # -----------------------------------------------------------------------------
-# Header & KPI Stats Bar
+# Header & KPI Stats Bar (Sentence Case)
 # -----------------------------------------------------------------------------
 
 st.markdown("""
@@ -278,26 +255,27 @@ st.markdown("""
 
 # Fetch real-time database KPIs
 kpis = load_db_kpis()
+db_categories = get_distinct_categories()
 
 st.markdown(f"""
 <div class="stats-grid">
     <div class="stat-card">
-        <div class="stat-card-title">Total Database Leads</div>
+        <div class="stat-card-title">Total database leads</div>
         <div class="stat-card-value">{kpis['total']}</div>
-        <div class="stat-card-subtext">Persisted in leads.db</div>
+        <div class="stat-card-subtext">Persisted in MySQL database</div>
     </div>
     <div class="stat-card">
-        <div class="stat-card-title">Actionable Leads</div>
+        <div class="stat-card-title">Actionable leads</div>
         <div class="stat-card-value">{kpis['contactable']}</div>
         <div class="stat-card-subtext">{kpis['contactable'] / kpis['total'] * 100 if kpis['total'] else 0:.1f}% ready to contact</div>
     </div>
     <div class="stat-card">
-        <div class="stat-card-title">Warm & Hot Opportunities</div>
+        <div class="stat-card-title">Warm & hot opportunities</div>
         <div class="stat-card-value">{kpis['hot'] + kpis['warm']}</div>
         <div class="stat-card-subtext">{kpis['hot']} HOT | {kpis['warm']} WARM</div>
     </div>
     <div class="stat-card">
-        <div class="stat-card-title">Contact Coverage</div>
+        <div class="stat-card-title">Contact coverage</div>
         <div class="stat-card-value">{kpis['phone_fill']:.0f}%</div>
         <div class="stat-card-subtext">Phone: {kpis['phone_fill']:.0f}% | Email: {kpis['email_fill']:.0f}%</div>
     </div>
@@ -330,10 +308,12 @@ with st.container():
         )
         
     with col3:
-        category_input = st.text_input(
+        search_category_options = ["All"] + db_categories if db_categories else ["All", "real estate", "dentist", "lawyer", "clothing store"]
+        selected_search_cat = st.selectbox(
             "Category / Industry",
-            value="real estate",
-            placeholder="e.g. real estate, dentist, lawyer, clothing store",
+            options=search_category_options,
+            index=1 if len(search_category_options) > 1 else 0,
+            help="Select an existing category from database or choose All",
         )
         
     with col4:
@@ -350,16 +330,17 @@ with st.container():
 
 # Run Discovery & Crawling Pipeline on click
 if search_clicked:
-    if not city_input.strip() or not category_input.strip():
-        st.error("Please specify both a city and category.")
+    target_cat = selected_search_cat if selected_search_cat != "All" else "real estate"
+    if not city_input.strip():
+        st.error("Please specify a city name.")
     else:
         status_box = st.status("Executing discovery & web analysis pipeline...", expanded=True)
         try:
-            status_box.write(f"Step 1/2: Querying OpenStreetMap & Geoapify for '{category_input}' in {city_input}, {country_input}...")
+            status_box.write(f"Step 1/2: Querying OpenStreetMap & Geoapify for '{target_cat}' in {city_input}, {country_input}...")
             scrape_res = run_scrape_pipeline(
                 country=country_input.strip(),
                 city=city_input.strip(),
-                category=category_input.strip(),
+                category=target_cat.strip(),
                 count=int(count_input),
             )
             status_box.write(f"Discovery complete: Found {scrape_res.new_count} new leads ({scrape_res.duplicate_count} duplicates skipped).")
@@ -367,7 +348,7 @@ if search_clicked:
             status_box.write("Step 2/2: Crawling websites, auditing SEO & performance, matching services, and scoring leads...")
             analyze_summary = run_analyze_pipeline(
                 city=city_input.strip(),
-                category=category_input.strip(),
+                category=target_cat.strip(),
                 reanalyze_all=False,
                 batch_size=20,
             )
@@ -385,7 +366,6 @@ if search_clicked:
 # -----------------------------------------------------------------------------
 
 st.sidebar.markdown("### Filter Database Leads")
-db_cities, db_categories = get_unique_filter_options()
 
 # Priority Filter
 priority_filter = st.sidebar.selectbox(
@@ -404,6 +384,15 @@ service_filter = st.sidebar.selectbox(
 )
 selected_service = None if service_filter == "All" else service_filter
 
+# Category Filter (Dynamic Dropdown)
+sidebar_category_options = ["All"] + db_categories
+category_filter = st.sidebar.selectbox(
+    "Category / Industry",
+    options=sidebar_category_options,
+    index=0,
+)
+selected_category = None if category_filter == "All" else category_filter
+
 # City Filter
 city_filter = st.sidebar.text_input(
     "Filter by City",
@@ -411,14 +400,6 @@ city_filter = st.sidebar.text_input(
     placeholder="e.g. Miami, Berlin, Toronto",
 )
 selected_city = city_filter.strip() if city_filter.strip() else None
-
-# Category Filter
-category_filter = st.sidebar.text_input(
-    "Filter by Category",
-    value="",
-    placeholder="e.g. real estate, dentist",
-)
-selected_category = category_filter.strip() if category_filter.strip() else None
 
 # Score Slider
 min_score_filter = st.sidebar.slider(
@@ -521,7 +502,7 @@ with col_xlsx:
 if filtered_df.empty:
     st.info("No leads match the current search or filter criteria. Try adjusting the sidebar filters or running a new search above.")
 else:
-    # Display table with curated columns and clean type conversions for PyArrow compatibility
+    # Display table with curated columns and clean type conversions
     display_columns = [
         "id",
         "business_name",
@@ -549,8 +530,11 @@ else:
     if "score" in df_to_display.columns:
         df_to_display["score"] = pd.to_numeric(df_to_display["score"], errors="coerce").fillna(0).astype(int)
 
+    # Apply flat color badges to Priority column
+    styled_df = df_to_display.style.map(highlight_priority, subset=["priority"])
+
     st.dataframe(
-        df_to_display,
+        styled_df,
         use_container_width=True,
         hide_index=True,
         column_config={
